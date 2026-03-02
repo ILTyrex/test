@@ -1,0 +1,31 @@
+# .gitignore - reglas básicas
+# Ignorar entornos virtuales de Python
+venv/
+.venv/
+env/
+
+# Archivos compilados y caches de Python
+__pycache__/
+*.py[cod]
+*.pyc
+
+# Paquetes y metadatos
+*.egg-info/
+pip-wheel-metadata/
+
+# Archivos de entorno (variables)
+.env
+.env.local
+
+# Node / frontend
+node_modules/
+dist/
+build/
+
+# Editor/IDE
+.vscode/
+.idea/
+
+# MacOS
+.DS_Store
+
