@@ -61,50 +61,33 @@ async def _call_tinyllama(prompt: str) -> schemas.ChatActionResult:
             parameters={},
         )
 
+    model = os.getenv("HF_TEXT_MODEL", "TinyLlama/TinyLlama-1.1B-Chat-v1.0")
+    url = f"https://router.huggingface.co/hf-inference/models/{model}"
+
     headers = {
         "Authorization": f"Bearer {hf_token}",
         "Content-Type": "application/json",
     }
-
-    chat_model = os.getenv("HF_CHAT_MODEL", "Qwen/Qwen2.5-7B-Instruct:novita")
-    chat_payload = {
-        "model": chat_model,
-        "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": prompt},
-        ],
-        "temperature": 0.2,
-        "max_tokens": 250,
+    payload = {
+        "inputs": prompt,
+        "parameters": {
+            "max_new_tokens": 220,
+            "temperature": 0.2,
+            "return_full_text": False,
+        },
     }
 
     async with httpx.AsyncClient(timeout=60.0) as client:
-        resp = await client.post(
-            "https://router.huggingface.co/v1/chat/completions",
-            headers=headers,
-            json=chat_payload,
-        )
+        resp = await client.post(url, headers=headers, json=payload)
 
-        if resp.status_code == 410:
-            text_model = os.getenv("HF_TEXT_MODEL", "TinyLlama/TinyLlama-1.1B-Chat-v1.0")
-            resp2 = await client.post(
-                f"https://router.huggingface.co/hf-inference/models/{text_model}",
-                headers=headers,
-                json={
-                    "inputs": prompt,
-                    "parameters": {"max_new_tokens": 220, "temperature": 0.2},
-                },
-            )
-            resp2.raise_for_status()
-            data2 = resp2.json()
-            if isinstance(data2, list) and data2 and "generated_text" in data2[0]:
-                content = data2[0]["generated_text"].strip()
-            else:
-                raise ValueError(f"Respuesta inesperada HF fallback: {data2}")
-        else:
-            resp.raise_for_status()
-            data = resp.json()
-            content = data["choices"][0]["message"]["content"].strip()
+    if resp.status_code >= 400:
+        raise RuntimeError(f"HF error {resp.status_code}: {resp.text}")
 
+    data = resp.json()
+    if not isinstance(data, list) or not data or "generated_text" not in data[0]:
+        raise RuntimeError(f"Respuesta HF inesperada: {data}")
+
+    content = data[0]["generated_text"].strip()
     try:
         parsed = json.loads(content)
         return schemas.ChatActionResult(**parsed)
