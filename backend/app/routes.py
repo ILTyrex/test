@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Body, Query
 from sqlalchemy.orm import Session
 from typing import Optional, List
 from datetime import datetime
 from app import crud
 from app import schemas
 from app.database import get_db
+from app import models as m
 
 router = APIRouter()
 
@@ -30,9 +31,23 @@ def get_user(user_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     return user
 
-@router.post("/login", tags=["Auth"])
-def login(cedula: str, clave: str, db: Session = Depends(get_db)):
-    user = crud.authenticate_user(db, cedula, clave)
+@router.post("/login", response_model=schemas.LoginResponse, tags=["Auth"])
+def login(
+    data: Optional[schemas.LoginRequest] = Body(default=None),
+    cedula: Optional[str] = Query(default=None),
+    clave: Optional[str] = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    resolved_cedula = data.cedula if data else cedula
+    resolved_clave = data.clave if data else clave
+
+    if not resolved_cedula or not resolved_clave:
+        raise HTTPException(
+            status_code=400,
+            detail="Debes enviar credenciales como JSON o query params",
+        )
+
+    user = crud.authenticate_user(db, resolved_cedula, resolved_clave)
     if not user:
         raise HTTPException(status_code=401, detail="Cédula o contraseña incorrectas")
     return {"message": "Login exitoso", "user_id": user.id}
@@ -65,7 +80,6 @@ def list_conversations(
 
 @router.get("/conversations/{conversation_id}/history", response_model=schemas.ConversationHistory, tags=["Conversations"])
 def get_history(conversation_id: int, db: Session = Depends(get_db)):
-    import models as m
     conv = db.query(m.Conversation).filter(m.Conversation.id == conversation_id).first()
     if not conv:
         raise HTTPException(status_code=404, detail="Conversación no encontrada")

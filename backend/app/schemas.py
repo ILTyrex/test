@@ -15,6 +15,14 @@ class UserOut(BaseModel):
     class Config:
         from_attributes = True
 
+class LoginRequest(BaseModel):
+    cedula: str
+    clave: str
+
+class LoginResponse(BaseModel):
+    message: str
+    user_id: int
+
 
 # ─── Conversation ────────────────────────────────────────
 class ConversationCreate(BaseModel):

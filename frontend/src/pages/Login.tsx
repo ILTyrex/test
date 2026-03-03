@@ -26,19 +26,37 @@ export default function Login() {
     return Object.keys(e).length === 0;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!validate()) return;
-    setLoading(true);
-    await new Promise((r) => setTimeout(r, 1500));
-    if (cedula === "0000000000") {
-      setErrors({ general: "Credenciales incorrectas. Verifica tu cédula y contraseña." });
-      setLoading(false);
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  if (!validate()) return;
+
+  setLoading(true);
+  setErrors({});
+
+  try {
+    const apiUrl = import.meta.env.VITE_API_URL;
+
+    const res = await fetch(`${apiUrl}/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cedula, clave: password }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      setErrors({ general: data.detail || "Error al iniciar sesión" });
       return;
     }
-    setLoading(false);
+
+    localStorage.setItem("user_id", String(data.user_id));
     navigate("/dashboard");
-  };
+  } catch {
+    setErrors({ general: "No se pudo conectar con el servidor" });
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4 relative overflow-hidden">
