@@ -26,36 +26,20 @@ export default function Login() {
     return Object.keys(e).length === 0;
   };
 
-const handleSubmit = async (e: React.FormEvent) => {
+const handleSubmit = (e: React.FormEvent) => {
   e.preventDefault();
   if (!validate()) return;
 
   setLoading(true);
   setErrors({});
 
-  try {
-    const apiUrl = import.meta.env.VITE_API_URL;
-
-    const res = await fetch(`${apiUrl}/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ cedula, clave: password }),
-    });
-
-    const data = await res.json();
-
-    if (!res.ok) {
-      setErrors({ general: data.detail || "Error al iniciar sesión" });
-      return;
-    }
-
-    localStorage.setItem("user_id", String(data.user_id));
+  // No backend connection: simulate a successful login
+  setTimeout(() => {
+    // store a placeholder user id or any required info
+    localStorage.setItem("user_id", "anonymous");
     navigate("/dashboard");
-  } catch {
-    setErrors({ general: "No se pudo conectar con el servidor" });
-  } finally {
     setLoading(false);
-  }
+  }, 500);
 };
 
   return (
