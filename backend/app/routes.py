@@ -3,7 +3,7 @@ import io
 import json
 import os
 from typing import Any, Dict, Tuple
-
+from urllib.parse import quote
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
@@ -61,8 +61,8 @@ async def _call_tinyllama(prompt: str) -> schemas.ChatActionResult:
             parameters={},
         )
 
-    model = os.getenv("HF_TEXT_MODEL", "TinyLlama/TinyLlama-1.1B-Chat-v1.0")
-    url = f"https://router.huggingface.co/hf-inference/models/{model}"
+    model = os.getenv("HF_TEXT_MODEL", "TinyLlama/TinyLlama-1.1B-Chat-v1.0").strip()
+    url = f"https://router.huggingface.co/hf-inference/models/{quote(model, safe='')}"
 
     headers = {
         "Authorization": f"Bearer {hf_token}",
