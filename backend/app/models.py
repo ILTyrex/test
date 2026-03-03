@@ -10,6 +10,7 @@ class User(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     student_code = Column(String(50), unique=True, index=True)
+    hashed_password = Column(String)
     created_at = Column(TIMESTAMP, server_default=func.now())
     enrollments = relationship("Enrollment", back_populates="user")
 

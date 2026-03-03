@@ -30,6 +30,13 @@ def get_user(user_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     return user
 
+@router.post("/login", tags=["Auth"])
+def login(cedula: str, clave: str, db: Session = Depends(get_db)):
+    user = crud.authenticate_user(db, cedula, clave)
+    if not user:
+        raise HTTPException(status_code=401, detail="Cédula o contraseña incorrectas")
+    return {"message": "Login exitoso", "user_id": user.id}
+
 
 # ─── Conversations ───────────────────────────────────────
 @router.post("/conversations", response_model=schemas.ConversationOut, tags=["Conversations"])

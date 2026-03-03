@@ -7,11 +7,18 @@ from app import models, schemas
 
 # ─── Users ───────────────────────────────────────────────
 def create_user(db: Session, data: schemas.UserCreate):
-    user = models.User(student_code=data.student_code)
+    user = models.User(
+        student_code=data.student_code, hashed_password=data.password)
     db.add(user)
     db.commit()
     db.refresh(user)
     return user
+
+def authenticate_user(db: Session, cedula: str, clave: str):
+    user = db.query(models.User).filter(models.User.student_code == cedula).first()
+    if user and user.hashed_password == clave:
+        return user
+    return None
 
 def get_user(db: Session, user_id: int):
     return db.query(models.User).filter(models.User.id == user_id).first()
