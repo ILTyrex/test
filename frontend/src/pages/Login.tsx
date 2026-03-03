@@ -21,7 +21,7 @@ export default function Login() {
     if (!cedula) e.cedula = "La cédula es obligatoria";
     else if (!/^\d+$/.test(cedula)) e.cedula = "Cédula inválida";
     if (!password) e.password = "La contraseña es obligatoria";
-    else if (password.length < 6) e.password = "Mínimo 6 caracteres";
+    else if (password.length < 5) e.password = "Mínimo 5 caracteres";
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -107,10 +107,7 @@ const handleSubmit = async (e: React.FormEvent) => {
             </Button>
           </form>
           <div className="mt-6 text-center">
-            <p className="text-sm text-muted-foreground">
-              ¿No tienes cuenta?{" "}
-              <Link to="/register" className="text-primary hover:underline font-medium">Registrarse</Link>
-            </p>
+  
           </div>
         </div>
       </motion.div>
