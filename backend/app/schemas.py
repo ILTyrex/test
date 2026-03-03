@@ -1,90 +1,67 @@
-from pydantic import BaseModel
-from typing import Optional, List
 from datetime import datetime
+from typing import Optional, Any, Dict, List
+from pydantic import BaseModel
 
 
-# ─── User ───────────────────────────────────────────────
-class UserCreate(BaseModel):
-    student_code: str
-    password: str
-class UserOut(BaseModel):
-    id: int
-    student_code: str
-    created_at: datetime
-
-    class Config:
-        from_attributes = True
-
-class LoginRequest(BaseModel):
-    cedula: str
-    clave: str
-
-class LoginResponse(BaseModel):
-    message: str
-    user_id: int
+class SessionStartRequest(BaseModel):
+    student_id: int
 
 
-# ─── Conversation ────────────────────────────────────────
-class ConversationCreate(BaseModel):
-    user_id: int
-
-class ConversationOut(BaseModel):
-    id: int
-    user_id: int
-    started_at: datetime
-    ended_at: Optional[datetime] = None
+class SessionStartResponse(BaseModel):
+    session_id: str
     status: str
 
-    class Config:
-        from_attributes = True
 
-
-# ─── Message ─────────────────────────────────────────────
-class MessageCreate(BaseModel):
-    conversation_id: int
-    role: str       # user / assistant / system
-    content: str
-
-class MessageOut(BaseModel):
-    id: int
-    conversation_id: int
-    role: str
-    content: str
-    timestamp: datetime
-
-    class Config:
-        from_attributes = True
-
-
-# ─── Chat (endpoint principal) ───────────────────────────
-class ChatRequest(BaseModel):
-    user_id: int
+class SessionMessageRequest(BaseModel):
     message: str
 
-class ChatResponse(BaseModel):
-    response: str
-    intent: str
-    confidence: float
+
+class SessionMessageResponse(BaseModel):
+    reply: str
+    action: str
+    data: Optional[Dict[str, Any]] = None
 
 
-# ─── Intent ──────────────────────────────────────────────
-class IntentCreate(BaseModel):
+class SessionEndResponse(BaseModel):
+    session_id: str
+    status: str
+
+
+class CourseOut(BaseModel):
+    code: str
     name: str
-    description: Optional[str] = None
+    credits: int
+    semester: int
 
-class IntentOut(BaseModel):
+    class Config:
+        from_attributes = True
+
+
+class EnrollmentCreate(BaseModel):
+    student_id: int
+    course_code: str
+    period: str
+
+
+class EnrollmentOut(BaseModel):
     id: int
-    name: str
-    description: Optional[str] = None
+    student_id: int
+    course_code: str
+    period: str
+    status: str
+    enrolled_at: datetime
+    cancelled_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
 
 
-# ─── Historial completo ──────────────────────────────────
-class ConversationHistory(BaseModel):
-    conversation: ConversationOut
-    messages: List[MessageOut]
+class StudentHistoryOut(BaseModel):
+    student_id: int
+    enrollments: List[EnrollmentOut]
 
-    class Config:
-        from_attributes = True
+
+class ChatActionResult(BaseModel):
+    answer: str
+    action: str
+    parameters: Dict[str, Any] = {}

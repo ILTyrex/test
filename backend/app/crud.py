@@ -1,111 +1,140 @@
-from sqlalchemy.orm import Session
-from sqlalchemy import and_
-from datetime import datetime
+import json
 from typing import Optional
-from app import models, schemas
+from sqlalchemy.orm import Session
+from sqlalchemy import desc
+from sqlalchemy.exc import IntegrityError
+from app import models
 
 
-# ─── Users ───────────────────────────────────────────────
-def create_user(db: Session, data: schemas.UserCreate):
-    user = models.User(
-        student_code=data.student_code, hashed_password=data.password)
-    db.add(user)
+# ---------- Session ----------
+def create_session(db: Session, student_id: int) -> models.Session:
+    session = models.Session(student_id=student_id, status="active")
+    db.add(session)
     db.commit()
-    db.refresh(user)
-    return user
-
-def authenticate_user(db: Session, cedula: str, clave: str):
-    user = db.query(models.User).filter(models.User.student_code == cedula).first()
-    if user and user.hashed_password == clave:
-        return user
-    return None
-
-def get_user(db: Session, user_id: int):
-    return db.query(models.User).filter(models.User.id == user_id).first()
-
-def get_user_by_code(db: Session, student_code: str):
-    return db.query(models.User).filter(models.User.student_code == student_code).first()
+    db.refresh(session)
+    return session
 
 
-# ─── Conversations ───────────────────────────────────────
-def create_conversation(db: Session, user_id: int):
-    conv = models.Conversation(user_id=user_id)
-    db.add(conv)
+def get_session(db: Session, session_id: str) -> Optional[models.Session]:
+    return db.query(models.Session).filter(models.Session.id == session_id).first()
+
+
+def end_session(db: Session, session_obj: models.Session) -> models.Session:
+    session_obj.status = "ended"
     db.commit()
-    db.refresh(conv)
-    return conv
+    db.refresh(session_obj)
+    return session_obj
 
-def close_conversation(db: Session, conversation_id: int):
-    conv = db.query(models.Conversation).filter(models.Conversation.id == conversation_id).first()
-    if conv:
-        conv.status = "closed"
-        conv.ended_at = datetime.utcnow()
-        db.commit()
-        db.refresh(conv)
-    return conv
 
-def get_active_conversation(db: Session, user_id: int):
-    return db.query(models.Conversation).filter(
-        and_(
-            models.Conversation.user_id == user_id,
-            models.Conversation.status == "active"
-        )
-    ).first()
-
-def get_conversations(
+# ---------- Messages ----------
+def create_message(
     db: Session,
-    user_id: Optional[int] = None,
-    status: Optional[str] = None,
-    start_date: Optional[datetime] = None,
-    end_date: Optional[datetime] = None,
-):
-    query = db.query(models.Conversation)
-    if user_id:
-        query = query.filter(models.Conversation.user_id == user_id)
-    if status:
-        query = query.filter(models.Conversation.status == status)
-    if start_date:
-        query = query.filter(models.Conversation.started_at >= start_date)
-    if end_date:
-        query = query.filter(models.Conversation.started_at <= end_date)
-    return query.order_by(models.Conversation.started_at.desc()).all()
-
-
-# ─── Messages ────────────────────────────────────────────
-def add_message(db: Session, data: schemas.MessageCreate):
+    session_id: str,
+    role: str,
+    content: str,
+    action_json: Optional[str] = None,
+) -> models.Message:
     msg = models.Message(
-        conversation_id=data.conversation_id,
-        role=data.role,
-        content=data.content,
+        session_id=session_id,
+        role=role,
+        content=content,
+        action_json=action_json,
     )
     db.add(msg)
     db.commit()
     db.refresh(msg)
     return msg
 
-def get_messages(db: Session, conversation_id: int):
-    return db.query(models.Message).filter(
-        models.Message.conversation_id == conversation_id
-    ).order_by(models.Message.timestamp).all()
 
-
-# ─── Intents ─────────────────────────────────────────────
-def get_or_create_intent(db: Session, name: str, description: str = None):
-    intent = db.query(models.Intent).filter(models.Intent.name == name).first()
-    if not intent:
-        intent = models.Intent(name=name, description=description)
-        db.add(intent)
-        db.commit()
-        db.refresh(intent)
-    return intent
-
-def link_message_intent(db: Session, message_id: int, intent_id: int, confidence: float):
-    mi = models.MessageIntent(
-        message_id=message_id,
-        intent_id=intent_id,
-        confidence=confidence,
+def get_recent_messages(db: Session, session_id: str, limit: int = 10):
+    rows = (
+        db.query(models.Message)
+        .filter(models.Message.session_id == session_id)
+        .order_by(desc(models.Message.created_at))
+        .limit(limit)
+        .all()
     )
-    db.add(mi)
+    return list(reversed(rows))
+
+
+# ---------- Courses ----------
+def get_courses_by_semester(db: Session, semester: int):
+    return (
+        db.query(models.Course)
+        .filter(models.Course.semester == semester)
+        .order_by(models.Course.code.asc())
+        .all()
+    )
+
+
+def get_course(db: Session, course_code: str) -> Optional[models.Course]:
+    return db.query(models.Course).filter(models.Course.code == course_code).first()
+
+
+# ---------- Enrollments ----------
+def create_enrollment(db: Session, student_id: int, course_code: str, period: str):
+    enrollment = models.Enrollment(
+        student_id=student_id,
+        course_code=course_code,
+        period=period,
+        status="active",
+    )
+    db.add(enrollment)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        return None
+    db.refresh(enrollment)
+    return enrollment
+
+
+def cancel_enrollment(db: Session, student_id: int, course_code: str, period: str):
+    enrollment = (
+        db.query(models.Enrollment)
+        .filter(
+            models.Enrollment.student_id == student_id,
+            models.Enrollment.course_code == course_code,
+            models.Enrollment.period == period,
+            models.Enrollment.status == "active",
+        )
+        .first()
+    )
+    if not enrollment:
+        return None
+
+    enrollment.status = "cancelled"
     db.commit()
-    db.refresh(mi)
-    return mi
+    db.refresh(enrollment)
+    return enrollment
+
+
+def get_student_history(db: Session, student_id: int):
+    return (
+        db.query(models.Enrollment)
+        .filter(models.Enrollment.student_id == student_id)
+        .order_by(models.Enrollment.enrolled_at.desc())
+        .all()
+    )
+
+
+# ---------- Action Logs ----------
+def log_action(
+    db: Session,
+    session_id: str,
+    student_id: int,
+    action_name: str,
+    parameters: dict,
+    result: str,
+):
+    row = models.ActionLog(
+        session_id=session_id,
+        student_id=student_id,
+        action_name=action_name,
+        parameters=json.dumps(parameters or {}),
+        result=result,
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
