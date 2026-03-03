@@ -53,63 +53,54 @@ def _build_prompt(db: Session, session_id: str, new_message: str) -> str:
 
 
 async def _call_tinyllama(prompt: str) -> schemas.ChatActionResult:
-    tinyllama_url = os.getenv("TINYLLAMA_URL")
-    if tinyllama_url:
-        async with httpx.AsyncClient(timeout=40.0) as client:
-            resp = await client.post(tinyllama_url, json={"prompt": prompt})
-            resp.raise_for_status()
-            data = resp.json()
-
-        if isinstance(data, dict) and {"answer", "action", "parameters"}.issubset(set(data.keys())):
-            return schemas.ChatActionResult(**data)
-
-        if isinstance(data, dict) and "text" in data:
-            parsed = json.loads(data["text"])
-            return schemas.ChatActionResult(**parsed)
-
-        raise ValueError("Respuesta de TinyLlama no válida")
-
     hf_token = os.getenv("HF_TOKEN")
     if not hf_token:
         return schemas.ChatActionResult(
-            answer="No tengo el servicio LLM configurado. Define TINYLLAMA_URL o HF_TOKEN.",
+            answer="Falta HF_TOKEN en variables de entorno.",
             action="none",
             parameters={},
         )
 
-    hf_url = os.getenv(
-        "HF_MODEL_URL",
-        "https://api-inference.huggingface.co/models/Osvaldo06/tinyllama",
-    )
-    headers = {"Authorization": f"Bearer {hf_token}"}
+    model = os.getenv("HF_CHAT_MODEL")
+    if not model:
+        return schemas.ChatActionResult(
+            answer="Falta HF_CHAT_MODEL en variables de entorno.",
+            action="none",
+            parameters={},
+        )
+
     payload = {
-        "inputs": prompt,
-        "parameters": {
-            "max_new_tokens": 220,
-            "temperature": 0.2,
-            "return_full_text": False,
-        },
+        "model": model,
+        "messages": [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": prompt},
+        ],
+        "temperature": 0.2,
+        "max_tokens": 250,
+    }
+
+    headers = {
+        "Authorization": f"Bearer {hf_token}",
+        "Content-Type": "application/json",
     }
 
     async with httpx.AsyncClient(timeout=60.0) as client:
-        resp = await client.post(hf_url, headers=headers, json=payload)
-
-    if resp.status_code == 503:
-        raise RuntimeError("Hugging Face está cargando el modelo. Intenta de nuevo en unos segundos.")
+        resp = await client.post(
+            "https://router.huggingface.co/v1/chat/completions",
+            headers=headers,
+            json=payload,
+        )
 
     resp.raise_for_status()
     data = resp.json()
+    content = data["choices"][0]["message"]["content"].strip()
 
-    if not isinstance(data, list) or not data or "generated_text" not in data[0]:
-        raise ValueError(f"Respuesta inesperada de Hugging Face: {data}")
-
-    generated_text = data[0]["generated_text"].strip()
     try:
-        parsed = json.loads(generated_text)
+        parsed = json.loads(content)
         return schemas.ChatActionResult(**parsed)
     except Exception:
         return schemas.ChatActionResult(
-            answer=generated_text,
+            answer=content,
             action="none",
             parameters={},
         )
